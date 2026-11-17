@@ -1,6 +1,6 @@
 An easy app (made with Claude) to launch apps from your dock with a shortcut like Windows
 
-#Installation
+# Installation
 
 Install by downloading : DockLauncher.swift / Info.plist / build.sh into the same folder
 
