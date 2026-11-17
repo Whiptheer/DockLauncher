@@ -16,6 +16,7 @@ let modifierOptions: [ModifierOption] = [
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var hotKeyRefs: [EventHotKeyRef?] = []
     var statusItem: NSStatusItem!
+    var settingsWindow: NSWindow?
     let appsMenu = NSMenu()
     let settingsMenu = NSMenu()
 
@@ -153,6 +154,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsMenu.addItem(ignoreItem)
 
         settingsMenu.addItem(NSMenuItem.separator())
+        let preferencesItem = NSMenuItem(title: "Préférences…", action: #selector(showPreferences), keyEquivalent: ",")
+        preferencesItem.target = self
+        settingsMenu.addItem(preferencesItem)
+
+        settingsMenu.addItem(NSMenuItem.separator())
         let quitItem = NSMenuItem(title: "Quitter DockLauncher", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         settingsMenu.addItem(quitItem)
@@ -165,6 +171,71 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func toggleIgnoreFinder(_ sender: NSMenuItem) {
         ignoreFinder.toggle()
+    }
+
+    @objc func showPreferences() {
+        if settingsWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 230),
+                                  styleMask: [.titled, .closable],
+                                  backing: .buffered,
+                                  defer: false)
+            window.title = "DockLauncher – Préférences"
+            window.isReleasedWhenClosed = false
+            window.center()
+
+            let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 230))
+            window.contentView = contentView
+
+            let titleLabel = NSTextField(labelWithString: "Réglages de DockLauncher")
+            titleLabel.font = NSFont.boldSystemFont(ofSize: 16)
+            titleLabel.frame = NSRect(x: 24, y: 184, width: 390, height: 24)
+            contentView.addSubview(titleLabel)
+
+            let shortcutLabel = NSTextField(labelWithString: "Raccourci clavier")
+            shortcutLabel.frame = NSRect(x: 24, y: 137, width: 150, height: 20)
+            contentView.addSubview(shortcutLabel)
+
+            let shortcutPopup = NSPopUpButton(frame: NSRect(x: 190, y: 133, width: 220, height: 26))
+            shortcutPopup.addItems(withTitles: modifierOptions.map(\.title))
+            shortcutPopup.selectItem(at: selectedModifierIndex)
+            shortcutPopup.target = self
+            shortcutPopup.action = #selector(selectModifierFromPreferences(_:))
+            contentView.addSubview(shortcutPopup)
+
+            let finderCheckbox = NSButton(checkboxWithTitle: "Ignorer Finder dans la liste des applications",
+                                          target: self,
+                                          action: #selector(toggleIgnoreFinderFromPreferences(_:)))
+            finderCheckbox.frame = NSRect(x: 24, y: 91, width: 390, height: 20)
+            finderCheckbox.state = ignoreFinder ? .on : .off
+            contentView.addSubview(finderCheckbox)
+
+            let descriptionLabel = NSTextField(labelWithString: "Les changements sont appliqués immédiatement.")
+            descriptionLabel.textColor = .secondaryLabelColor
+            descriptionLabel.frame = NSRect(x: 24, y: 48, width: 390, height: 20)
+            contentView.addSubview(descriptionLabel)
+
+            settingsWindow = window
+        }
+
+        if let window = settingsWindow {
+            if let shortcutPopup = window.contentView?.subviews.compactMap({ $0 as? NSPopUpButton }).first {
+                shortcutPopup.selectItem(at: selectedModifierIndex)
+            }
+            if let finderCheckbox = window.contentView?.subviews.compactMap({ $0 as? NSButton }).first {
+                finderCheckbox.state = ignoreFinder ? .on : .off
+            }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    @objc func selectModifierFromPreferences(_ sender: NSPopUpButton) {
+        selectedModifierIndex = sender.indexOfSelectedItem
+        registerHotKeys()
+    }
+
+    @objc func toggleIgnoreFinderFromPreferences(_ sender: NSButton) {
+        ignoreFinder = sender.state == .on
     }
 
     // MARK: - Lecture de l'ordre du Dock
