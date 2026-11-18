@@ -754,7 +754,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
             running.unhide()
         }
 
-        NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()))
+        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser)
 
         if let running = running {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -764,7 +764,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
     }
 
     func finderHasWindow(for running: NSRunningApplication) -> Bool {
-        guard let windowInfo = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID)
+        guard let windowInfo = CGWindowListCopyWindowInfo(
+            [.optionAll, .excludeDesktopElements],
+            kCGNullWindowID
+        )
                 as? [[String: Any]] else {
             return false
         }

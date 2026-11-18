@@ -1,5 +1,17 @@
 # Patch notes
 
+## v2.0.2 — November 18, 2026
+
+### Fixed
+- **Finder window creation**: when no Finder window is open or minimized, DockLauncher now uses LaunchServices to open `FileManager.default.homeDirectoryForCurrentUser`.
+- **Window detection**: Finder windows are detected with `CGWindowListCopyWindowInfo`, including desktop elements exclusion and Finder process PID filtering.
+
+### Requirements
+- macOS 11 or later.
+- No Accessibility permission.
+- No Automation or AppleScript dependency.
+- Existing UserDefaults settings are preserved.
+
 ## v2.0.1 — November 18, 2026
 
 ### New
