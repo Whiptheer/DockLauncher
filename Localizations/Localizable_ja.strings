@@ -1,0 +1,17 @@
+/* DockLauncher – ja */
+"Keyboard shortcut" = "キーボードショートカット";
+"Ignore Finder" = "Finder を無視";
+"Preferences…" = "環境設定…";
+"Quit DockLauncher" = "DockLauncher を終了";
+"DockLauncher – Preferences" = "DockLauncher – 環境設定";
+"DockLauncher Settings" = "DockLauncher の設定";
+"Ignore Finder in the app list" = "アプリ一覧で Finder を無視する";
+"App order" = "アプリの順序";
+"Drag and drop rows to reorder. Your Dock is not modified." = "行をドラッグ＆ドロップして並べ替えます。Dock は変更されません。";
+"Shortcut" = "ショートカット";
+"Application" = "アプリケーション";
+"Reset to Dock order" = "Dock の順序に戻す";
+"↑ Move up" = "↑ 上へ";
+"↓ Move down" = "↓ 下へ";
+"Language" = "言語";
+"System default" = "システムのデフォルト";

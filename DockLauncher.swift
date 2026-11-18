@@ -3,22 +3,58 @@ import Carbon
 
 struct ModifierOption {
     let title: String
+    let symbols: String
     let flags: UInt32
 }
 
 let modifierOptions: [ModifierOption] = [
-    ModifierOption(title: "⌘⌥  (Cmd + Option)", flags: UInt32(cmdKey | optionKey)),
-    ModifierOption(title: "⌘⌃  (Cmd + Control)", flags: UInt32(cmdKey | controlKey)),
-    ModifierOption(title: "⌘⇧  (Cmd + Shift)", flags: UInt32(cmdKey | shiftKey)),
-    ModifierOption(title: "⌘⇧⌥  (Cmd + Shift + Option)", flags: UInt32(cmdKey | shiftKey | optionKey)),
+    ModifierOption(title: "⌘⌥  (Cmd + Option)", symbols: "⌘⌥", flags: UInt32(cmdKey | optionKey)),
+    ModifierOption(title: "⌘⌃  (Cmd + Control)", symbols: "⌘⌃", flags: UInt32(cmdKey | controlKey)),
+    ModifierOption(title: "⌘⇧  (Cmd + Shift)", symbols: "⌘⇧", flags: UInt32(cmdKey | shiftKey)),
+    ModifierOption(title: "⌘⇧⌥  (Cmd + Shift + Option)", symbols: "⌘⇧⌥", flags: UInt32(cmdKey | shiftKey | optionKey)),
 ]
 
-class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+let rowDragType = NSPasteboard.PasteboardType("com.noam.docklauncher.row")
+
+struct LanguageOption {
+    let code: String?   // nil = suivre la langue du système
+    let name: String    // nom affiché dans sa propre langue
+}
+
+let languageOptions: [LanguageOption] = [
+    LanguageOption(code: nil, name: ""),
+    LanguageOption(code: "en", name: "English"),
+    LanguageOption(code: "fr", name: "Français"),
+    LanguageOption(code: "es", name: "Español"),
+    LanguageOption(code: "de", name: "Deutsch"),
+    LanguageOption(code: "ja", name: "日本語"),
+    LanguageOption(code: "zh-Hans", name: "简体中文"),
+    LanguageOption(code: "pt", name: "Português"),
+    LanguageOption(code: "ru", name: "Русский"),
+]
+
+/// Traduction avec langue forcée par l'utilisateur (sinon langue du système).
+func tr(_ key: String) -> String {
+    if let code = UserDefaults.standard.string(forKey: "language"),
+       let path = Bundle.main.path(forResource: code, ofType: "lproj"),
+       let bundle = Bundle(path: path) {
+        return bundle.localizedString(forKey: key, value: key, table: nil)
+    }
+    return Bundle.main.localizedString(forKey: key, value: key, table: nil)
+}
+
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewDataSource, NSTableViewDelegate {
     var hotKeyRefs: [EventHotKeyRef?] = []
     var statusItem: NSStatusItem!
-    var settingsWindow: NSWindow?
-    let appsMenu = NSMenu()
     let settingsMenu = NSMenu()
+
+    // Fenêtre de préférences
+    var settingsWindow: NSWindow?
+    var shortcutPopup: NSPopUpButton?
+    var languagePopup: NSPopUpButton?
+    var finderCheckbox: NSButton?
+    var orderTable: NSTableView?
+    var prefApps: [URL] = []
 
     let keyCodes: [Int: UInt32] = [
         1: 18, 2: 19, 3: 20, 4: 21, 5: 23,
@@ -37,6 +73,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         set { UserDefaults.standard.set(newValue, forKey: "ignoreFinder") }
     }
 
+    var selectedLanguageIndex: Int {
+        let current = UserDefaults.standard.string(forKey: "language")
+        return languageOptions.firstIndex(where: { $0.code == current }) ?? 0
+    }
+
     // MARK: - Cycle de vie
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -45,7 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         registerHotKeys()
     }
 
-    // MARK: - Barre des menus (clic gauche vs clic droit)
+    // MARK: - Barre des menus (même menu pour tous les types de clic)
 
     func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -57,84 +98,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             } else {
                 button.image = NSImage(systemSymbolName: "square.grid.3x3.fill", accessibilityDescription: "DockLauncher")
             }
-            button.target = self
-            button.action = #selector(statusItemClicked(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
-        appsMenu.delegate = self
         settingsMenu.delegate = self
+        statusItem.menu = settingsMenu
     }
-
-    @objc func statusItemClicked(_ sender: Any) {
-        let event = NSApp.currentEvent
-        if event?.type == .rightMouseUp {
-            statusItem.menu = settingsMenu
-        } else {
-            statusItem.menu = appsMenu
-        }
-        statusItem.button?.performClick(nil)
-    }
-
-    func menuDidClose(_ menu: NSMenu) {
-        // On détache le menu pour pouvoir choisir lequel afficher au prochain clic
-        statusItem.menu = nil
-    }
-
-    // MARK: - Menu clic gauche : liste des apps
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        if menu === appsMenu {
-            buildAppsMenu()
-        } else if menu === settingsMenu {
+        if menu === settingsMenu {
             buildSettingsMenu()
         }
     }
 
-    func buildAppsMenu() {
-        appsMenu.removeAllItems()
-        let apps = getDockApps()
-        let modifierTitle = modifierOptions[selectedModifierIndex].title.components(separatedBy: " ").first ?? "⌘⌥"
-
-        if apps.isEmpty {
-            appsMenu.addItem(NSMenuItem(title: "Aucune app détectée dans le Dock", action: nil, keyEquivalent: ""))
-        } else {
-            for i in 1...9 where i - 1 < apps.count {
-                let url = apps[i - 1]
-                let name = FileManager.default.displayName(atPath: url.path)
-                let item = NSMenuItem(title: "\(modifierTitle)\(i)   \(name)",
-                                       action: #selector(launchFromMenu(_:)),
-                                       keyEquivalent: "")
-                item.tag = i
-                item.target = self
-                appsMenu.addItem(item)
-            }
-        }
-
-        appsMenu.addItem(NSMenuItem.separator())
-        let quitItem = NSMenuItem(title: "Quitter DockLauncher", action: #selector(quitApp), keyEquivalent: "q")
-        quitItem.target = self
-        appsMenu.addItem(quitItem)
-    }
-
-    @objc func launchFromMenu(_ sender: NSMenuItem) {
-        let apps = getDockApps()
-        let index = sender.tag
-        if index > 0 && index <= apps.count {
-            NSWorkspace.shared.open(apps[index - 1])
-        }
-    }
-
-    @objc func quitApp() {
-        NSApp.terminate(nil)
-    }
-
-    // MARK: - Menu clic droit : réglages
-
     func buildSettingsMenu() {
         settingsMenu.removeAllItems()
 
-        let shortcutHeader = NSMenuItem(title: "Raccourci clavier", action: nil, keyEquivalent: "")
+        let shortcutHeader = NSMenuItem(title: tr("Keyboard shortcut"), action: nil, keyEquivalent: "")
         shortcutHeader.isEnabled = false
         settingsMenu.addItem(shortcutHeader)
 
@@ -148,103 +127,340 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         settingsMenu.addItem(NSMenuItem.separator())
 
-        let ignoreItem = NSMenuItem(title: "Ignorer Finder", action: #selector(toggleIgnoreFinder(_:)), keyEquivalent: "")
+        let ignoreItem = NSMenuItem(title: tr("Ignore Finder"), action: #selector(toggleIgnoreFinder(_:)), keyEquivalent: "")
         ignoreItem.target = self
         ignoreItem.state = ignoreFinder ? .on : .off
         settingsMenu.addItem(ignoreItem)
 
         settingsMenu.addItem(NSMenuItem.separator())
-        let preferencesItem = NSMenuItem(title: "Préférences…", action: #selector(showPreferences), keyEquivalent: ",")
+        let languageItem = NSMenuItem(title: tr("Language"), action: nil, keyEquivalent: "")
+        let languageSubmenu = NSMenu()
+        for (index, option) in languageOptions.enumerated() {
+            let title = option.code == nil ? tr("System default") : option.name
+            let item = NSMenuItem(title: title, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = index
+            item.state = (index == selectedLanguageIndex) ? .on : .off
+            languageSubmenu.addItem(item)
+            if index == 0 { languageSubmenu.addItem(NSMenuItem.separator()) }
+        }
+        languageItem.submenu = languageSubmenu
+        settingsMenu.addItem(languageItem)
+
+        settingsMenu.addItem(NSMenuItem.separator())
+        let preferencesItem = NSMenuItem(title: tr("Preferences…"), action: #selector(showPreferences), keyEquivalent: ",")
         preferencesItem.target = self
         settingsMenu.addItem(preferencesItem)
 
         settingsMenu.addItem(NSMenuItem.separator())
-        let quitItem = NSMenuItem(title: "Quitter DockLauncher", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: tr("Quit DockLauncher"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         settingsMenu.addItem(quitItem)
+    }
+
+    @objc func quitApp() {
+        NSApp.terminate(nil)
     }
 
     @objc func selectModifier(_ sender: NSMenuItem) {
         selectedModifierIndex = sender.tag
         registerHotKeys() // ré-applique immédiatement le nouveau raccourci
+        refreshPreferences()
     }
 
     @objc func toggleIgnoreFinder(_ sender: NSMenuItem) {
         ignoreFinder.toggle()
+        refreshPreferences()
     }
+
+    // MARK: - Langue
+
+    @objc func selectLanguage(_ sender: NSMenuItem) {
+        applyLanguage(languageOptions[sender.tag].code)
+    }
+
+    @objc func selectLanguageFromPreferences(_ sender: NSPopUpButton) {
+        applyLanguage(languageOptions[sender.indexOfSelectedItem].code)
+    }
+
+    func applyLanguage(_ code: String?) {
+        if let code = code {
+            UserDefaults.standard.set(code, forKey: "language")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "language")
+        }
+
+        // La fenêtre de préférences est reconstruite pour prendre la nouvelle langue
+        let wasVisible = settingsWindow?.isVisible ?? false
+        let oldOrigin = settingsWindow?.frame.origin
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.settingsWindow?.close()
+            self.settingsWindow = nil
+            self.shortcutPopup = nil
+            self.languagePopup = nil
+            self.finderCheckbox = nil
+            self.orderTable = nil
+            if wasVisible {
+                self.showPreferences()
+                if let origin = oldOrigin { self.settingsWindow?.setFrameOrigin(origin) }
+            }
+        }
+    }
+
+    // MARK: - Fenêtre de préférences
 
     @objc func showPreferences() {
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 230),
-                                  styleMask: [.titled, .closable],
-                                  backing: .buffered,
-                                  defer: false)
-            window.title = "DockLauncher – Préférences"
-            window.isReleasedWhenClosed = false
-            window.center()
-
-            let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 440, height: 230))
-            window.contentView = contentView
-
-            let titleLabel = NSTextField(labelWithString: "Réglages de DockLauncher")
-            titleLabel.font = NSFont.boldSystemFont(ofSize: 16)
-            titleLabel.frame = NSRect(x: 24, y: 184, width: 390, height: 24)
-            contentView.addSubview(titleLabel)
-
-            let shortcutLabel = NSTextField(labelWithString: "Raccourci clavier")
-            shortcutLabel.frame = NSRect(x: 24, y: 137, width: 150, height: 20)
-            contentView.addSubview(shortcutLabel)
-
-            let shortcutPopup = NSPopUpButton(frame: NSRect(x: 190, y: 133, width: 220, height: 26))
-            shortcutPopup.addItems(withTitles: modifierOptions.map(\.title))
-            shortcutPopup.selectItem(at: selectedModifierIndex)
-            shortcutPopup.target = self
-            shortcutPopup.action = #selector(selectModifierFromPreferences(_:))
-            contentView.addSubview(shortcutPopup)
-
-            let finderCheckbox = NSButton(checkboxWithTitle: "Ignorer Finder dans la liste des applications",
-                                          target: self,
-                                          action: #selector(toggleIgnoreFinderFromPreferences(_:)))
-            finderCheckbox.frame = NSRect(x: 24, y: 91, width: 390, height: 20)
-            finderCheckbox.state = ignoreFinder ? .on : .off
-            contentView.addSubview(finderCheckbox)
-
-            let descriptionLabel = NSTextField(labelWithString: "Les changements sont appliqués immédiatement.")
-            descriptionLabel.textColor = .secondaryLabelColor
-            descriptionLabel.frame = NSRect(x: 24, y: 48, width: 390, height: 20)
-            contentView.addSubview(descriptionLabel)
-
-            settingsWindow = window
+            buildPreferencesWindow()
         }
+        refreshPreferences()
+        settingsWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
-        if let window = settingsWindow {
-            if let shortcutPopup = window.contentView?.subviews.compactMap({ $0 as? NSPopUpButton }).first {
-                shortcutPopup.selectItem(at: selectedModifierIndex)
-            }
-            if let finderCheckbox = window.contentView?.subviews.compactMap({ $0 as? NSButton }).first {
-                finderCheckbox.state = ignoreFinder ? .on : .off
-            }
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
+    func buildPreferencesWindow() {
+        let width: CGFloat = 500
+        let height: CGFloat = 596
+
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+                              styleMask: [.titled, .closable],
+                              backing: .buffered,
+                              defer: false)
+        window.title = tr("DockLauncher – Preferences")
+        window.isReleasedWhenClosed = false
+        window.center()
+
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        window.contentView = contentView
+
+        let titleLabel = NSTextField(labelWithString: tr("DockLauncher Settings"))
+        titleLabel.font = NSFont.boldSystemFont(ofSize: 16)
+        titleLabel.frame = NSRect(x: 24, y: 552, width: 452, height: 24)
+        contentView.addSubview(titleLabel)
+
+        let shortcutLabel = NSTextField(labelWithString: tr("Keyboard shortcut"))
+        shortcutLabel.frame = NSRect(x: 24, y: 510, width: 150, height: 20)
+        contentView.addSubview(shortcutLabel)
+
+        let popup = NSPopUpButton(frame: NSRect(x: 190, y: 506, width: 286, height: 26))
+        popup.addItems(withTitles: modifierOptions.map { $0.title })
+        popup.target = self
+        popup.action = #selector(selectModifierFromPreferences(_:))
+        contentView.addSubview(popup)
+        shortcutPopup = popup
+
+        let languageLabel = NSTextField(labelWithString: tr("Language"))
+        languageLabel.frame = NSRect(x: 24, y: 474, width: 150, height: 20)
+        contentView.addSubview(languageLabel)
+
+        let langPopup = NSPopUpButton(frame: NSRect(x: 190, y: 470, width: 286, height: 26))
+        langPopup.addItems(withTitles: languageOptions.map { $0.code == nil ? tr("System default") : $0.name })
+        langPopup.target = self
+        langPopup.action = #selector(selectLanguageFromPreferences(_:))
+        contentView.addSubview(langPopup)
+        languagePopup = langPopup
+
+        let checkbox = NSButton(checkboxWithTitle: tr("Ignore Finder in the app list"),
+                                target: self,
+                                action: #selector(toggleIgnoreFinderFromPreferences(_:)))
+        checkbox.frame = NSRect(x: 24, y: 434, width: 452, height: 20)
+        contentView.addSubview(checkbox)
+        finderCheckbox = checkbox
+
+        let sectionLabel = NSTextField(labelWithString: tr("App order"))
+        sectionLabel.font = NSFont.boldSystemFont(ofSize: 13)
+        sectionLabel.frame = NSRect(x: 24, y: 398, width: 452, height: 18)
+        contentView.addSubview(sectionLabel)
+
+        let hintLabel = NSTextField(labelWithString: tr("Drag and drop rows to reorder. Your Dock is not modified."))
+        hintLabel.font = NSFont.systemFont(ofSize: 11)
+        hintLabel.textColor = .secondaryLabelColor
+        hintLabel.frame = NSRect(x: 24, y: 378, width: 452, height: 16)
+        contentView.addSubview(hintLabel)
+
+        // Tableau réordonnable
+        let table = NSTableView()
+        let shortcutColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("shortcut"))
+        shortcutColumn.title = tr("Shortcut")
+        shortcutColumn.width = 90
+        shortcutColumn.minWidth = 70
+        let appColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("app"))
+        appColumn.title = tr("Application")
+        appColumn.width = 340
+        table.addTableColumn(shortcutColumn)
+        table.addTableColumn(appColumn)
+        table.rowHeight = 30
+        table.usesAlternatingRowBackgroundColors = true
+        table.allowsMultipleSelection = false
+        table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        table.dataSource = self
+        table.delegate = self
+        table.registerForDraggedTypes([rowDragType])
+        table.draggingDestinationFeedbackStyle = .gap
+
+        let scrollView = NSScrollView(frame: NSRect(x: 24, y: 64, width: 452, height: 304))
+        scrollView.documentView = table
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+        contentView.addSubview(scrollView)
+        orderTable = table
+
+        let resetButton = NSButton(title: tr("Reset to Dock order"), target: self, action: #selector(resetOrder))
+        resetButton.bezelStyle = .rounded
+        resetButton.frame = NSRect(x: 24, y: 24, width: 216, height: 28)
+        contentView.addSubview(resetButton)
+
+        let upButton = NSButton(title: tr("↑ Move up"), target: self, action: #selector(moveSelectedUp))
+        upButton.bezelStyle = .rounded
+        upButton.frame = NSRect(x: 248, y: 24, width: 110, height: 28)
+        contentView.addSubview(upButton)
+
+        let downButton = NSButton(title: tr("↓ Move down"), target: self, action: #selector(moveSelectedDown))
+        downButton.bezelStyle = .rounded
+        downButton.frame = NSRect(x: 366, y: 24, width: 110, height: 28)
+        contentView.addSubview(downButton)
+
+        settingsWindow = window
+    }
+
+    func refreshPreferences() {
+        shortcutPopup?.selectItem(at: selectedModifierIndex)
+        languagePopup?.selectItem(at: selectedLanguageIndex)
+        finderCheckbox?.state = ignoreFinder ? .on : .off
+        prefApps = getDockApps()
+        orderTable?.reloadData()
     }
 
     @objc func selectModifierFromPreferences(_ sender: NSPopUpButton) {
         selectedModifierIndex = sender.indexOfSelectedItem
         registerHotKeys()
+        orderTable?.reloadData() // met à jour les libellés de raccourci
     }
 
     @objc func toggleIgnoreFinderFromPreferences(_ sender: NSButton) {
-        ignoreFinder = sender.state == .on
+        ignoreFinder = (sender.state == .on)
+        refreshPreferences()
     }
 
-    // MARK: - Lecture de l'ordre du Dock
+    @objc func resetOrder() {
+        UserDefaults.standard.removeObject(forKey: "customOrder")
+        refreshPreferences()
+    }
 
-    func getDockApps() -> [URL] {
+    @objc func moveSelectedUp() { moveSelected(by: -1) }
+    @objc func moveSelectedDown() { moveSelected(by: 1) }
+
+    func moveSelected(by delta: Int) {
+        guard let table = orderTable else { return }
+        let row = table.selectedRow
+        guard row >= 0 else { return }
+        let target = row + delta
+        guard target >= 0 && target < prefApps.count else { return }
+        prefApps.swapAt(row, target)
+        saveOrder()
+        table.reloadData()
+        table.selectRowIndexes(IndexSet(integer: target), byExtendingSelection: false)
+    }
+
+    // MARK: - Tableau : source de données
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        return prefApps.count
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard row < prefApps.count, let identifier = tableColumn?.identifier.rawValue else { return nil }
+        let url = prefApps[row]
+        let cell = NSTableCellView()
+
+        if identifier == "shortcut" {
+            let hasShortcut = row < 9
+            let text = hasShortcut ? "\(modifierOptions[selectedModifierIndex].symbols)\(row + 1)" : "—"
+            let label = NSTextField(labelWithString: text)
+            label.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .medium)
+            label.textColor = hasShortcut ? .labelColor : .tertiaryLabelColor
+            label.translatesAutoresizingMaskIntoConstraints = false
+            cell.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+                label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+            ])
+        } else {
+            let iconView = NSImageView()
+            iconView.image = NSWorkspace.shared.icon(forFile: url.path)
+            iconView.translatesAutoresizingMaskIntoConstraints = false
+
+            let name = NSTextField(labelWithString: FileManager.default.displayName(atPath: url.path))
+            name.lineBreakMode = .byTruncatingTail
+            name.translatesAutoresizingMaskIntoConstraints = false
+
+            cell.addSubview(iconView)
+            cell.addSubview(name)
+            NSLayoutConstraint.activate([
+                iconView.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+                iconView.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                iconView.widthAnchor.constraint(equalToConstant: 22),
+                iconView.heightAnchor.constraint(equalToConstant: 22),
+                name.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+                name.trailingAnchor.constraint(lessThanOrEqualTo: cell.trailingAnchor, constant: -4),
+                name.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+            ])
+        }
+        return cell
+    }
+
+    // MARK: - Tableau : glisser-déposer
+
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+        let item = NSPasteboardItem()
+        item.setString(String(row), forType: rowDragType)
+        return item
+    }
+
+    func tableView(_ tableView: NSTableView,
+                   validateDrop info: NSDraggingInfo,
+                   proposedRow row: Int,
+                   proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+        if dropOperation == .on {
+            tableView.setDropRow(row, dropOperation: .above)
+        }
+        return .move
+    }
+
+    func tableView(_ tableView: NSTableView,
+                   acceptDrop info: NSDraggingInfo,
+                   row: Int,
+                   dropOperation: NSTableView.DropOperation) -> Bool {
+        guard let items = info.draggingPasteboard.pasteboardItems,
+              let from = items.compactMap({ $0.string(forType: rowDragType) }).compactMap({ Int($0) }).first,
+              from >= 0 && from < prefApps.count else { return false }
+
+        var apps = prefApps
+        let moved = apps.remove(at: from)
+        var destination = row
+        if from < row { destination -= 1 }
+        destination = max(0, min(destination, apps.count))
+        apps.insert(moved, at: destination)
+
+        prefApps = apps
+        saveOrder()
+        tableView.reloadData()
+        tableView.selectRowIndexes(IndexSet(integer: destination), byExtendingSelection: false)
+        return true
+    }
+
+    // MARK: - Ordre des applications (indépendant du Dock)
+
+    func isFinder(_ url: URL) -> Bool {
+        return url.lastPathComponent == "Finder.app"
+    }
+
+    /// Finder + apps épinglées, dans l'ordre réel du Dock.
+    func dockAppsAll() -> [URL] {
         var apps: [URL] = []
 
-        if !ignoreFinder,
-           let finderURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder") {
+        if let finderURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder") {
             apps.append(finderURL)
         }
 
@@ -263,6 +479,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         return apps
+    }
+
+    /// Applique l'ordre personnalisé (s'il existe) par-dessus l'ordre du Dock.
+    /// Les apps ajoutées au Dock depuis passent à la fin, celles retirées disparaissent.
+    func orderedApps() -> [URL] {
+        let all = dockAppsAll()
+        let saved = UserDefaults.standard.stringArray(forKey: "customOrder") ?? []
+        guard !saved.isEmpty else { return all }
+
+        var remaining = all
+        var result: [URL] = []
+        for path in saved {
+            if let index = remaining.firstIndex(where: { $0.path == path }) {
+                result.append(remaining.remove(at: index))
+            }
+        }
+        result.append(contentsOf: remaining)
+        return result
+    }
+
+    /// Liste finale utilisée par les raccourcis (ordre perso, Finder filtré si besoin).
+    func getDockApps() -> [URL] {
+        let apps = orderedApps()
+        return ignoreFinder ? apps.filter { !isFinder($0) } : apps
+    }
+
+    func saveOrder() {
+        var full = prefApps
+        // Si Finder est masqué, il garde sa place dans l'ordre sauvegardé
+        if ignoreFinder {
+            let current = orderedApps()
+            if let index = current.firstIndex(where: { isFinder($0) }) {
+                full.insert(current[index], at: min(index, full.count))
+            }
+        }
+        UserDefaults.standard.set(full.map { $0.path }, forKey: "customOrder")
     }
 
     // MARK: - Raccourcis clavier globaux

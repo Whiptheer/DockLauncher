@@ -1,0 +1,17 @@
+/* DockLauncher – zh-Hans */
+"Keyboard shortcut" = "键盘快捷键";
+"Ignore Finder" = "忽略访达";
+"Preferences…" = "偏好设置…";
+"Quit DockLauncher" = "退出 DockLauncher";
+"DockLauncher – Preferences" = "DockLauncher – 偏好设置";
+"DockLauncher Settings" = "DockLauncher 设置";
+"Ignore Finder in the app list" = "在应用列表中忽略访达";
+"App order" = "应用顺序";
+"Drag and drop rows to reorder. Your Dock is not modified." = "拖放行即可重新排序，不会改动你的 Dock。";
+"Shortcut" = "快捷键";
+"Application" = "应用";
+"Reset to Dock order" = "恢复为 Dock 顺序";
+"↑ Move up" = "↑ 上移";
+"↓ Move down" = "↓ 下移";
+"Language" = "语言";
+"System default" = "跟随系统";
