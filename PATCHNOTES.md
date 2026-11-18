@@ -6,7 +6,7 @@
 - **10 shortcut slots** with support for keys 1 through 0.
 - **Universal arm64/x86_64 build**.
 - **Liquid Glass-style menu bar panel** with an AppKit fallback.
-- **Hold-to-peek HUD** showing Dock apps followed by active undocked apps.
+- **Floating shortcut menu / hold-to-peek HUD** showing Dock apps followed by active undocked apps. Hold the configured modifier combination for about half a second to open it; by default, hold **⌘⌥**. Release the modifiers to close it.
 - **Option + click to quit** in the menu bar interface.
 - **Active app indicators** for running applications.
 

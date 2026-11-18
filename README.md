@@ -8,7 +8,7 @@ Launch apps from your Dock with a global keyboard shortcut. DockLauncher keeps a
 - **Dock-aware app order**: Finder is first, followed by pinned Dock apps in Dock order.
 - **Active app indicators**: running apps outside the Dock fill the remaining shortcut slots.
 - **Option + click to quit**: hold Option while clicking the menu bar icon, then choose Quit.
-- **Hold-to-peek HUD**: hold the configured modifier combination to preview the available apps.
+- **Floating shortcut menu / hold-to-peek HUD**: hold the configured modifier combination for about half a second to open the floating app menu. By default, hold **⌘⌥**. Release the modifiers to close it.
 - **Finder-aware behavior**: pressing the Finder shortcut hides an active Finder window, and pressing it again restores that window without opening an unnecessary duplicate.
 - **Preferences**: choose the shortcut combination, exclude apps, ignore Finder, reorder apps, or reset to Dock order.
 - **8 languages**: English, French, Spanish, German, Japanese, Simplified Chinese, Portuguese and Russian.
@@ -42,7 +42,7 @@ The script creates a universal `DockLauncher.app`, signs it ad-hoc and installs 
 ## Usage
 
 - Press the configured modifier combination plus a number to activate the app in that slot.
-- Hold the modifier combination to show the Dock and active-app HUD.
+- Hold the configured modifier combination for about half a second to open the floating app menu. By default, hold **⌘⌥**; the menu closes when the modifiers are released. You can change the combination in Preferences.
 - Use the menu bar icon to open Preferences, change the language or quit.
 - In Preferences, drag rows to reorder apps or reset the app order to the Dock order.
 - Enable **Ignore Finder** to remove Finder from the shortcut list.
