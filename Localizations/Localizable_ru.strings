@@ -15,3 +15,7 @@
 "↓ Move down" = "↓ Ниже";
 "Language" = "Язык";
 "System default" = "Как в системе";
+"Use shortcut" = "Использовать сочетание";
+"Quit" = "Завершить";
+"Applications" = "Приложения";
+"Option-click a running app to quit" = "Option + щелчок — завершить";

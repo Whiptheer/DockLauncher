@@ -15,3 +15,7 @@
 "↓ Move down" = "↓ 下移";
 "Language" = "语言";
 "System default" = "跟随系统";
+"Use shortcut" = "使用快捷键";
+"Quit" = "退出";
+"Applications" = "应用";
+"Option-click a running app to quit" = "按住 Option 再点击以退出";

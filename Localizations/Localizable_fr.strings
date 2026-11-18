@@ -15,3 +15,7 @@
 "↓ Move down" = "↓ Descendre";
 "Language" = "Langue";
 "System default" = "Langue du système";
+"Use shortcut" = "Utiliser le raccourci";
+"Quit" = "Quitter";
+"Applications" = "Applications";
+"Option-click a running app to quit" = "Option + clic pour quitter";

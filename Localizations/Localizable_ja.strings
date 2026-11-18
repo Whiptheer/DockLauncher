@@ -15,3 +15,7 @@
 "↓ Move down" = "↓ 下へ";
 "Language" = "言語";
 "System default" = "システムのデフォルト";
+"Use shortcut" = "ショートカットを使用";
+"Quit" = "終了";
+"Applications" = "アプリケーション";
+"Option-click a running app to quit" = "Option＋クリックで終了";

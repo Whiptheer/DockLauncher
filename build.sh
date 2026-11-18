@@ -47,13 +47,35 @@ if [ "$LANG_COUNT" = "0" ]; then
 fi
 
 echo "Compilation..."
-swiftc DockLauncher.swift -o "$APP_DIR/Contents/MacOS/$APP_NAME"
+swiftc DockLauncher.swift -target arm64-apple-macos11.0 -o "$APP_DIR/Contents/MacOS/$APP_NAME.arm64"
+swiftc DockLauncher.swift -target x86_64-apple-macos11.0 -o "$APP_DIR/Contents/MacOS/$APP_NAME.x86_64"
+lipo -create \
+    "$APP_DIR/Contents/MacOS/$APP_NAME.arm64" \
+    "$APP_DIR/Contents/MacOS/$APP_NAME.x86_64" \
+    -output "$APP_DIR/Contents/MacOS/$APP_NAME"
+rm "$APP_DIR/Contents/MacOS/$APP_NAME.arm64" "$APP_DIR/Contents/MacOS/$APP_NAME.x86_64"
 
 echo "Signature ad-hoc..."
-codesign --force --deep --sign - "$APP_DIR"
+xattr -cr "$APP_DIR"
+rm -rf "$APP_DIR/Contents/_CodeSignature"
 
-# Force Finder à rafraîchir l'icône (cache d'icônes)
-touch "$APP_DIR"
+find "$APP_DIR" -xdev -print0 | while IFS= read -r -d '' f; do
+    xattr -d com.apple.FinderInfo "$f" 2>/dev/null || true
+    xattr -d com.apple.fileprovider.fpfs "$f" 2>/dev/null || true
+    xattr -d com.apple.macl "$f" 2>/dev/null || true
+    xattr -d com.apple.provenance "$f" 2>/dev/null || true
+done
+
+codesign --force --sign - "$APP_DIR/Contents/MacOS/$APP_NAME"
+
+find "$APP_DIR" -xdev -print0 | while IFS= read -r -d '' f; do
+    xattr -d com.apple.FinderInfo "$f" 2>/dev/null || true
+    xattr -d com.apple.fileprovider.fpfs "$f" 2>/dev/null || true
+    xattr -d com.apple.macl "$f" 2>/dev/null || true
+    xattr -d com.apple.provenance "$f" 2>/dev/null || true
+done
+
+codesign --force --sign - "$APP_DIR"
 
 echo ""
 echo "Terminé : $APP_DIR est prêt."

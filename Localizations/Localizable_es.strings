@@ -15,3 +15,7 @@
 "↓ Move down" = "↓ Bajar";
 "Language" = "Idioma";
 "System default" = "Predeterminado del sistema";
+"Use shortcut" = "Usar atajo";
+"Quit" = "Salir";
+"Applications" = "Aplicaciones";
+"Option-click a running app to quit" = "Opción + clic para salir";

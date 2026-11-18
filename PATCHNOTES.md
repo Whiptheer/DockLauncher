@@ -1,5 +1,37 @@
 # Patch notes
 
+## v2.0.0 — November 18, 2026
+
+### New
+- **10 shortcut slots** with support for keys 1 through 0.
+- **Universal arm64/x86_64 build**.
+- **Liquid Glass-style menu bar panel** with an AppKit fallback.
+- **Hold-to-peek HUD** showing Dock apps followed by active undocked apps.
+- **Option + click to quit** in the menu bar interface.
+- **Active app indicators** for running applications.
+
+### Improved
+- The menu is shorter and fully localized in eight languages.
+- The "Ignore Finder" setting remains available in Preferences.
+- French menu wording is shorter: **Option + clic pour quitter**.
+
+### Fixed
+- **Finder shortcut behavior** now hides an active Finder instance on the first press.
+- The second press restores the already-open Finder instance without opening a duplicate.
+- Finder creates a new window only when no Finder window exists.
+- Persisted shortcut modifier values outside the supported range are safely reset to the default.
+
+### Removed
+- Removed all Automation and AppleScript dependencies.
+- Removed all Apps Management prompts and workflow.
+- Finder and app behavior now use `NSRunningApplication`, `NSWorkspace` and `CGWindowListCopyWindowInfo` only.
+
+### Requirements
+- macOS 11 or later.
+- No Accessibility permission.
+- No Accessibility event tap.
+- Existing UserDefaults settings are preserved.
+
 ## v1.1.0 — November 18, 2026
 
 ### New
