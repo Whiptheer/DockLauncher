@@ -1,8 +1,8 @@
 # DockLauncher
 
-Launch the apps in your Dock with a keyboard shortcut: **⌘⌥1** opens the first one, **⌘⌥2** the second, and so on up to 9.
+Launch the apps in your Dock with a keyboard shortcut: **⌘⌥1** opens the first one, **⌘⌥2** the second, and so on up to 9— from anywhere on your Mac.
 
-DockLauncher lives in the menu bar (no Dock icon) and runs on Apple Silicon Macs (M1 and later).
+DockLauncher lives quietly in your menu bar with zero Dock clutter and zero Accessibility permissions required.
 
 ## Features
 
