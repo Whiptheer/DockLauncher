@@ -1,5 +1,23 @@
 # Patch notes
 
+## v2.0.1 — November 18, 2026
+
+### New
+- **Clickable HUD app icons**: hold **⌘ + Option** and click an app icon in the floating shortcut menu to run the same action as its number shortcut.
+
+### Improved
+- Global shortcut handling now dispatches actions on the main thread and re-registers the hotkeys after the Mac wakes from sleep.
+- Holding **⌘ + Option** for about half a second opens the floating shortcut menu; release the modifiers to close it.
+
+### Known issue
+- Finder may not open a new Finder window when no Finder window is currently open or minimized.
+
+### Requirements
+- macOS 11 or later.
+- No Accessibility permission.
+- No Accessibility event tap.
+- Existing UserDefaults settings are preserved.
+
 ## v2.0.0 — November 18, 2026
 
 ### New

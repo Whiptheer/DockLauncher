@@ -43,8 +43,41 @@ func tr(_ key: String) -> String {
     return Bundle.main.localizedString(forKey: key, value: key, table: nil)
 }
 
+final class PeekAppView: NSView {
+    let appURL: URL
+    var onActivate: ((URL) -> Void)?
+
+    init(frame frameRect: NSRect, appURL: URL) {
+        self.appURL = appURL
+        super.init(frame: frameRect)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard event.modifierFlags.contains(.command),
+              event.modifierFlags.contains(.option) else {
+            super.mouseDown(with: event)
+            return
+        }
+        onActivate?(appURL)
+    }
+
+    @objc func activateWithGesture() {
+        guard let event = NSApp.currentEvent,
+              event.modifierFlags.contains(.command),
+              event.modifierFlags.contains(.option) else {
+            return
+        }
+        onActivate?(appURL)
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewDataSource, NSTableViewDelegate {
     var hotKeyRefs: [EventHotKeyRef?] = []
+    var eventHandlerRef: EventHandlerRef?
     var statusItem: NSStatusItem!
     let settingsMenu = NSMenu()
     var globalFlagsMonitor: Any?
@@ -105,11 +138,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
         installEventHandler()
         registerHotKeys()
         installModifierMonitors()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(workspaceDidWake(_:)),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+    }
+
+    @objc func workspaceDidWake(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.registerHotKeys()
+        }
     }
 
     deinit {
         unregisterHotKeys()
         cancelPeek()
+        if let eventHandlerRef = eventHandlerRef {
+            RemoveEventHandler(eventHandlerRef)
+        }
         if let monitor = globalFlagsMonitor { NSEvent.removeMonitor(monitor) }
         if let monitor = localFlagsMonitor { NSEvent.removeMonitor(monitor) }
     }
@@ -664,7 +712,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
 
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
             if isFinder(url) {
-                if finderWindowStateHidden {
+                if finderWindowStateHidden || running.isHidden {
                     running.unhide()
                     running.activate(options: [.activateAllWindows])
                     finderWindowStateHidden = false
@@ -676,14 +724,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
                         running.hide()
                         finderWindowStateHidden = true
                     } else {
-                        running.activate(options: [.activateAllWindows])
-                        NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()))
+                        openFinderWindow(running: running)
                     }
                 } else {
                     running.unhide()
                     running.activate(options: [.activateAllWindows])
                     if !finderHasWindow(for: running) {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()))
+                        openFinderWindow(running: running)
                     }
                 }
             } else if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID {
@@ -696,26 +743,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
 
         if isFinder(url) {
             finderWindowStateHidden = false
-            NSWorkspace.shared.open(url)
+            openFinderWindow()
         } else {
             NSWorkspace.shared.open(url)
         }
     }
 
+    func openFinderWindow(running: NSRunningApplication? = nil) {
+        if let running = running {
+            running.unhide()
+        }
+
+        NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()))
+
+        if let running = running {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                running.activate(options: [.activateAllWindows])
+            }
+        }
+    }
+
     func finderHasWindow(for running: NSRunningApplication) -> Bool {
-        guard let windowInfo = CGWindowListCopyWindowInfo(
-            [.optionAll],
-            kCGNullWindowID
-        ) as? [[String: Any]] else {
+        guard let windowInfo = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID)
+                as? [[String: Any]] else {
             return false
         }
 
         return windowInfo.contains { entry in
             guard let pid = entry[kCGWindowOwnerPID as String] as? NSNumber,
-                  let layer = entry[kCGWindowLayer as String] as? NSNumber else {
+                  let layer = entry[kCGWindowLayer as String] as? NSNumber,
+                  pid.int32Value == running.processIdentifier,
+                  layer.intValue == 0 else {
                 return false
             }
-            return pid.int32Value == running.processIdentifier && layer.intValue == 0
+            let name = entry[kCGWindowName as String] as? String
+            return name?.caseInsensitiveCompare("Desktop") != .orderedSame
         }
     }
 
@@ -826,8 +888,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
 
         var x: CGFloat = 0
         for app in apps {
-            let container = NSView(frame: NSRect(x: x, y: 0, width: itemSize, height: 92))
+            let container = PeekAppView(frame: NSRect(x: x, y: 0, width: itemSize, height: 92),
+                                        appURL: app.url)
+            container.onActivate = { [weak self] url in
+                self?.cancelPeek()
+                self?.activateApplication(url)
+            }
             container.wantsLayer = true
+            container.addGestureRecognizer(NSClickGestureRecognizer(target: container,
+                                                                    action: #selector(PeekAppView.activateWithGesture)))
             let icon = NSImageView(frame: NSRect(x: 16, y: 28, width: 48, height: 48))
             icon.image = NSWorkspace.shared.icon(forFile: app.url.path)
             icon.imageScaling = .scaleAxesIndependently
@@ -870,7 +939,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
                                        eventKind: OSType(kEventHotKeyPressed))
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
-        InstallEventHandler(GetApplicationEventTarget(), { (_, event, userData) -> OSStatus in
+        let status = InstallEventHandler(GetApplicationEventTarget(), { (_, event, userData) -> OSStatus in
             guard let userData = userData else { return noErr }
             let mySelf = Unmanaged<AppDelegate>.fromOpaque(userData).takeUnretainedValue()
 
@@ -884,14 +953,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
                                &hotKeyID)
 
             let index = Int(hotKeyID.id)
-            let apps = mySelf.getActiveShortcutApps()
-
-            if index > 0 && index <= apps.count {
-                mySelf.cancelPeek()
-                mySelf.activateApplication(apps[index - 1])
+            DispatchQueue.main.async {
+                let apps = mySelf.getActiveShortcutApps()
+                if index > 0 && index <= apps.count {
+                    mySelf.cancelPeek()
+                    mySelf.activateApplication(apps[index - 1])
+                }
             }
             return noErr
-        }, 1, &eventType, selfPtr, nil)
+        }, 1, &eventType, selfPtr, &eventHandlerRef)
+        if status != noErr {
+            print("Erreur installation gestionnaire raccourcis: code \(status)")
+        }
     }
 
     func unregisterHotKeys() {

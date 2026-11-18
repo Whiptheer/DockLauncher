@@ -9,6 +9,7 @@ Launch apps from your Dock with a global keyboard shortcut. DockLauncher keeps a
 - **Active app indicators**: running apps outside the Dock fill the remaining shortcut slots.
 - **Option + click to quit**: hold Option while clicking the menu bar icon, then choose Quit.
 - **Floating shortcut menu / hold-to-peek HUD**: hold the configured modifier combination for about half a second to open the floating app menu. By default, hold **⌘⌥**. Release the modifiers to close it.
+- **Clickable floating app icons**: click an icon while holding **⌘ + Option** to activate the app exactly as if you had typed its number shortcut.
 - **Finder-aware behavior**: pressing the Finder shortcut hides an active Finder window, and pressing it again restores that window without opening an unnecessary duplicate.
 - **Preferences**: choose the shortcut combination, exclude apps, ignore Finder, reorder apps, or reset to Dock order.
 - **8 languages**: English, French, Spanish, German, Japanese, Simplified Chinese, Portuguese and Russian.
@@ -20,7 +21,7 @@ Launch apps from your Dock with a global keyboard shortcut. DockLauncher keeps a
 
 ### From a release
 
-1. Download `DockLauncher-v2.0.0.zip` from the [Releases](https://github.com/Whiptheer/DockLauncher/releases) page.
+1. Download `DockLauncher-v2.0.1.zip` from the [Releases](https://github.com/Whiptheer/DockLauncher/releases) page.
 2. Unzip it and move `DockLauncher.app` to `/Applications`.
 3. On the first launch, macOS may open Privacy & Security instead of launching the app because the release uses an ad-hoc signature.
 4. Open **System Settings > Privacy & Security**, then click **Open Anyway** for DockLauncher.
@@ -43,11 +44,16 @@ The script creates a universal `DockLauncher.app`, signs it ad-hoc and installs 
 
 - Press the configured modifier combination plus a number to activate the app in that slot.
 - Hold the configured modifier combination for about half a second to open the floating app menu. By default, hold **⌘⌥**; the menu closes when the modifiers are released. You can change the combination in Preferences.
+- With **⌘ + Option** held, click an app icon in the floating menu to perform the same action as typing that app's number shortcut.
 - Use the menu bar icon to open Preferences, change the language or quit.
 - In Preferences, drag rows to reorder apps or reset the app order to the Dock order.
 - Enable **Ignore Finder** to remove Finder from the shortcut list.
 
 No Accessibility, Automation, AppleScript or Apps Management permission is requested.
+
+## Known issues
+
+- Finder may not open a new Finder window when no Finder window is currently open or minimized.
 
 ## Privacy and security
 
