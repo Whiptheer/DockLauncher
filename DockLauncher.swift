@@ -84,7 +84,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
     var localFlagsMonitor: Any?
     var peekTimer: DispatchWorkItem?
     var peekPanel: NSPanel?
-    var finderWindowStateHidden = false
 
     // Fenêtre de préférences
     var settingsWindow: NSWindow?
@@ -712,27 +711,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
 
         if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first {
             if isFinder(url) {
-                if finderWindowStateHidden || running.isHidden {
-                    running.unhide()
-                    running.activate(options: [.activateAllWindows])
-                    finderWindowStateHidden = false
-                    return
-                }
-
-                if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID {
-                    if finderHasWindow(for: running) {
-                        running.hide()
-                        finderWindowStateHidden = true
-                    } else {
-                        openFinderWindow(running: running)
-                    }
-                } else {
-                    running.unhide()
-                    running.activate(options: [.activateAllWindows])
-                    if !finderHasWindow(for: running) {
-                        openFinderWindow(running: running)
-                    }
-                }
+                activateFinder(running: running)
             } else if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleID {
                 running.hide()
             } else {
@@ -742,11 +721,86 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
         }
 
         if isFinder(url) {
-            finderWindowStateHidden = false
             openFinderWindow()
         } else {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    func activateFinder(running: NSRunningApplication) {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+
+        let finderURL = running.bundleURL
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder")
+        guard let finderURL = finderURL else { return }
+
+        let windowInfo = detectFinderWindows(finderPID: running.processIdentifier)
+        let hasVisibleWindow = windowInfo.hasVisibleWindow
+
+        if running.isActive && !running.isHidden && hasVisibleWindow {
+            running.hide()
+            return
+        }
+
+        if hasVisibleWindow {
+            if running.isHidden {
+                running.unhide()
+            }
+            running.activate(options: [.activateIgnoringOtherApps])
+            return
+        }
+
+        if windowInfo.hasAnyWindow {
+            NSWorkspace.shared.openApplication(at: finderURL, configuration: configuration) { _, _ in }
+            return
+        }
+
+        let homeURL = FileManager.default.homeDirectoryForCurrentUser
+        NSWorkspace.shared.open([homeURL],
+                                withApplicationAt: finderURL,
+                                configuration: configuration) { _, _ in }
+    }
+
+    private struct FinderWindowInfo {
+        let hasAnyWindow: Bool
+        let hasVisibleWindow: Bool
+    }
+
+    private func detectFinderWindows(finderPID: pid_t) -> FinderWindowInfo {
+        let options: CGWindowListOption = [.optionAll, .excludeDesktopElements]
+        guard let windowList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return FinderWindowInfo(hasAnyWindow: false, hasVisibleWindow: false)
+        }
+
+        var hasAnyWindow = false
+        var hasVisibleWindow = false
+
+        for info in windowList {
+            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  pid == finderPID,
+                  let layer = info[kCGWindowLayer as String] as? Int,
+                  layer == 0,
+                  let boundsDict = info[kCGWindowBounds as String] as? [String: NSNumber],
+                  let widthNumber = boundsDict["Width"],
+                  let heightNumber = boundsDict["Height"],
+                  CGFloat(truncating: widthNumber) > 100,
+                  CGFloat(truncating: heightNumber) > 100 else {
+                continue
+            }
+
+            hasAnyWindow = true
+            if (info[kCGWindowIsOnscreen as String] as? Bool) ?? false {
+                hasVisibleWindow = true
+            }
+        }
+
+        return FinderWindowInfo(hasAnyWindow: hasAnyWindow,
+                                hasVisibleWindow: hasVisibleWindow)
+    }
+
+    func finderHasWindow(for running: NSRunningApplication) -> Bool {
+        detectFinderWindows(finderPID: running.processIdentifier).hasAnyWindow
     }
 
     func openFinderWindow(running: NSRunningApplication? = nil) {
@@ -754,33 +808,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSTableViewD
             running.unhide()
         }
 
-        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser)
+        let homeURL = FileManager.default.homeDirectoryForCurrentUser
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        if let finderURL = running?.bundleURL
+            ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder") {
+            NSWorkspace.shared.open([homeURL],
+                                    withApplicationAt: finderURL,
+                                    configuration: configuration) { _, _ in }
+        } else {
+            NSWorkspace.shared.open(homeURL)
+        }
 
         if let running = running {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 running.activate(options: [.activateAllWindows])
             }
-        }
-    }
-
-    func finderHasWindow(for running: NSRunningApplication) -> Bool {
-        guard let windowInfo = CGWindowListCopyWindowInfo(
-            [.optionAll, .excludeDesktopElements],
-            kCGNullWindowID
-        )
-                as? [[String: Any]] else {
-            return false
-        }
-
-        return windowInfo.contains { entry in
-            guard let pid = entry[kCGWindowOwnerPID as String] as? NSNumber,
-                  let layer = entry[kCGWindowLayer as String] as? NSNumber,
-                  pid.int32Value == running.processIdentifier,
-                  layer.intValue == 0 else {
-                return false
-            }
-            let name = entry[kCGWindowName as String] as? String
-            return name?.caseInsensitiveCompare("Desktop") != .orderedSame
         }
     }
 

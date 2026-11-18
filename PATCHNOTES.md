@@ -1,28 +1,25 @@
 # Patch notes
 
-## v2.0.2 — November 18, 2026
-
-### Fixed
-- **Finder window creation**: when no Finder window is open or minimized, DockLauncher now uses LaunchServices to open `FileManager.default.homeDirectoryForCurrentUser`.
-- **Window detection**: Finder windows are detected with `CGWindowListCopyWindowInfo`, including desktop elements exclusion and Finder process PID filtering.
-
-### Requirements
-- macOS 11 or later.
-- No Accessibility permission.
-- No Automation or AppleScript dependency.
-- Existing UserDefaults settings are preserved.
-
 ## v2.0.1 — November 18, 2026
 
 ### New
 - **Clickable HUD app icons**: hold **⌘ + Option** and click an app icon in the floating shortcut menu to run the same action as its number shortcut.
+- **Four-state Finder shortcut handling**: distinguishes a visible Finder window, a background or hidden visible window, an off-screen/minimized window and no Finder window.
 
 ### Improved
 - Global shortcut handling now dispatches actions on the main thread and re-registers the hotkeys after the Mac wakes from sleep.
 - Holding **⌘ + Option** for about half a second opens the floating shortcut menu; release the modifiers to close it.
+- Finder window detection uses `CGWindowListCopyWindowInfo` and filters by PID, window layer and dimensions above `100 × 100`.
 
-### Known issue
-- Finder may not open a new Finder window when no Finder window is currently open or minimized.
+### Fixed
+- A frontmost Finder window is hidden by the first shortcut press.
+- A visible Finder window in the background or hidden state is restored with `activateIgnoringOtherApps`.
+- An off-screen or minimized window is reopened through `NSWorkspace.openApplication`.
+- When no Finder window exists, LaunchServices opens `FileManager.default.homeDirectoryForCurrentUser` through the Finder.
+
+### Removed
+- No Accessibility, Screen Recording, Input Monitoring, AppleScript or Automation permission is requested.
+- No `kCGWindowName`, Accessibility API, event-tap, AppleScript or ScriptingBridge code is used.
 
 ### Requirements
 - macOS 11 or later.

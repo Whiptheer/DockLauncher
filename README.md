@@ -21,7 +21,7 @@ Launch apps from your Dock with a global keyboard shortcut. DockLauncher keeps a
 
 ### From a release
 
-1. Download `DockLauncher-v2.0.2.zip` from the [Releases](https://github.com/Whiptheer/DockLauncher/releases) page.
+1. Download `DockLauncher-v2.0.1.zip` from the [Releases](https://github.com/Whiptheer/DockLauncher/releases) page.
 2. Unzip it and move `DockLauncher.app` to `/Applications`.
 3. On the first launch, macOS may open Privacy & Security instead of launching the app because the release uses an ad-hoc signature.
 4. Open **System Settings > Privacy & Security**, then click **Open Anyway** for DockLauncher.
